@@ -1,0 +1,9 @@
+Package: enigma2-plugin-extensions-madoe21-feed
+Version: 1.0.0
+Architecture: all
+Section: extras
+Priority: optional
+Maintainer: madoe21
+Description: madoe21 Enigma2 plugin feed configuration.
+ Adds the madoe21 opkg feed so plugins can be installed
+ and updated via the Enigma2 package manager.

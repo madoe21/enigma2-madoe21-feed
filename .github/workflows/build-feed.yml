@@ -1,0 +1,88 @@
+name: build-feed
+on:
+  repository_dispatch:
+    types: [plugin-released]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  feed:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install opkg-utils
+        run: |
+          git clone --depth 1 https://git.yoctoproject.org/opkg-utils /tmp/opkg-utils
+          echo "/tmp/opkg-utils" >> "$GITHUB_PATH"
+          echo "PYTHONPATH=/tmp/opkg-utils${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
+
+      - name: Download latest IPKs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p public/feed
+          PLUGINS=(enigma2-fakehls-plugin enigma2-fritzcall enigma2-fritzhome enigma2-fritzmon enigma2-homematic enigma2-lotto enigma2-openliga-db enigma2-spritpreise-checker enigma2-stocks enigma2-weather enigma2-wireguard)
+          for repo in "${PLUGINS[@]}"; do
+            echo "::group::$repo"
+            gh release download \
+              --repo madoe21/$repo \
+              --pattern '*.ipk' \
+              --dir public/feed \
+              --clobber || echo "no release yet for $repo"
+            echo "::endgroup::"
+          done
+          ls -la public/feed
+
+      - name: Generate Packages index
+        run: |
+          cd public/feed
+          opkg-make-index -p Packages . || true
+          gzip -kf Packages
+          ls -la
+
+      - name: Write feed index page
+        run: |
+          cd public/feed
+          {
+            echo '<!doctype html><meta charset="utf-8">'
+            echo '<title>madoe21 feed files</title>'
+            echo '<h1>madoe21 Enigma2 feed</h1><ul>'
+            for f in *.ipk Packages Packages.gz; do
+              [ -f "$f" ] && echo "<li><a href=\"$f\">$f</a> ($(du -h "$f" | cut -f1))</li>"
+            done
+            echo '</ul>'
+          } > index.html
+
+      - name: Write landing page
+        run: |
+          cat > public/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>madoe21 Enigma2 feed</title>
+          <h1>madoe21 Enigma2 plugin feed</h1>
+          <p>Add to <code>/etc/opkg/madoe21-feed.conf</code>:</p>
+          <pre>src/gz madoe21 https://madoe21.github.io/enigma2-madoe21-feed/feed</pre>
+          <p>Then <code>opkg update &amp;&amp; opkg list | grep enigma2-plugin-extensions-</code>.</p>
+          <p><a href="feed/">Browse feed files</a></p>
+          HTML
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4

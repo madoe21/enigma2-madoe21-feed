@@ -1,0 +1,6 @@
+.env
+build/
+*.ipk
+__pycache__/
+*.pyc
+*.pyo

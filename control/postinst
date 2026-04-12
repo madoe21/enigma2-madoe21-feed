@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "madoe21 feed configured. Run 'opkg update' to refresh package lists."
+exit 0

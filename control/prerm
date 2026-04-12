@@ -1,0 +1,7 @@
+#!/bin/sh
+# Only remove feed config on real uninstall, not on upgrade/reinstall
+if [ "$1" = "remove" ]; then
+    rm -f /etc/opkg/madoe21-feed.conf 2>/dev/null || true
+    echo "madoe21 feed removed."
+fi
+exit 0
