@@ -50,7 +50,11 @@ jobs:
       - name: Generate Packages index
         run: |
           cd public/feed
-          opkg-make-index -p Packages . || true
+          # Canonical form: write the index to Packages. (`-p` in opkg-utils is a
+          # filename PREFIX, not an output file — using it corrupted the
+          # Filename: paths so opkg could not fetch the IPKs.)
+          opkg-make-index . > Packages
+          test -s Packages  # fail loudly on an empty index
           gzip -kf Packages
           ls -la
 
