@@ -37,6 +37,7 @@ endif
 	mkdir -p $(CONTROL_STAGING)
 	cp src/madoe21-feed.conf $(DATA_STAGING)/$(FEED_CONF_DEST)/
 	cp control/control  $(CONTROL_STAGING)/
+	sed -i 's/^Version:.*/Version: $(VERSION)/' $(CONTROL_STAGING)/control
 	cp control/postinst $(CONTROL_STAGING)/
 	cp control/prerm    $(CONTROL_STAGING)/
 	chmod 755 $(CONTROL_STAGING)/postinst $(CONTROL_STAGING)/prerm
