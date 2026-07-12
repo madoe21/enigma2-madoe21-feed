@@ -48,7 +48,36 @@ make ipk
 
 The resulting `.ipk` is placed in `build/`.
 
-### Install on receiver
+### Quick install (recommended) — straight from the receiver, no build needed
+
+You don't need this repo checked out anywhere for this. SSH into the receiver and run it there;
+this downloads the already-published feed IPK and installs it directly, no local build step:
+
+```bash
+ssh root@<receiver-ip>
+
+# fetch the current feed-config package straight from the published feed and install it
+FEED=https://madoe21.github.io/enigma2-madoe21-feed/feed
+IPK=$(wget -qO- "$FEED/Packages" | awk -v p=enigma2-plugin-extensions-madoe21-feed \
+  '/^Package: /{pkg=$2} /^Filename: /{if (pkg==p) print $2}')
+wget -O /tmp/madoe21-feed.ipk "$FEED/$IPK"
+opkg install /tmp/madoe21-feed.ipk
+
+# now the feed source is configured (/etc/opkg/madoe21-feed.conf) - pull the package lists
+opkg update
+
+# install whichever plugin(s) you want from the feed
+opkg install enigma2-plugin-extensions-fritz-call
+```
+
+If `opkg install` ever complains about a missing source before you've run the steps above, you
+can also just write the feed source by hand first: `echo 'src/gz madoe21 https://madoe21.github.io/enigma2-madoe21-feed/feed' > /etc/opkg/madoe21-feed.conf && opkg update`.
+
+Once installed, `enigma2-plugin-extensions-madoe21-feed` upgrades itself the same way as any other
+feed package (`opkg upgrade enigma2-plugin-extensions-madoe21-feed` or via the OpenATV plugin
+manager), so re-running any of this by hand afterwards is normally not necessary.
+
+### Build it yourself instead
 
 1. Copy `.env.example` to `.env` and set your receiver's IP address:
    ```

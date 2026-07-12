@@ -35,7 +35,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p public/feed
-          PLUGINS=(enigma2-fakehls-plugin enigma2-fritzcall enigma2-fritzhome enigma2-fritzmon enigma2-homematic enigma2-lotto enigma2-openliga-db enigma2-spritpreise-checker enigma2-stocks enigma2-weather enigma2-wireguard)
+          # Includes this repo itself: the madoe21-feed config package must be
+          # in its own feed so it can upgrade itself via opkg, not just install once.
+          PLUGINS=(enigma2-madoe21-feed enigma2-fakehls-plugin enigma2-fritzcall enigma2-fritzhome enigma2-fritzmon enigma2-homematic enigma2-lotto enigma2-openliga-db enigma2-spritpreise-checker enigma2-stocks enigma2-weather enigma2-wireguard)
           for repo in "${PLUGINS[@]}"; do
             echo "::group::$repo"
             gh release download \

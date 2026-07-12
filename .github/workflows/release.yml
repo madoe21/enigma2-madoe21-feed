@@ -69,3 +69,15 @@ jobs:
           name: ${{ steps.ver.outputs.tag }}
           files: ${{ steps.ipk.outputs.path }}
           generate_release_notes: true
+
+      # Self-dispatch: this repo's own build-feed.yml also needs to pick up the
+      # new madoe21-feed IPK (it's included in its own feed so it can self-update).
+      - name: Trigger feed rebuild
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/madoe21/enigma2-madoe21-feed/dispatches \
+            -f event_type=plugin-released \
+            -f "client_payload[repo]=${{ github.repository }}" \
+            -f "client_payload[tag]=${{ steps.ver.outputs.tag }}"
