@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+PLUGIN_DIR="/usr/lib/enigma2/python/Plugins/Extensions/example_plugin"
+
+if [ -d "$PLUGIN_DIR" ]; then
+    chmod -R 755 "$PLUGIN_DIR" || true
+fi
+
+# If your postinst brings up any long-running state (services, VPN tunnels,
+# timers, ...) remember: opkg runs prerm on every UPGRADE too, not just a
+# real uninstall (remove-old, then install-new). If prerm tears that state
+# down, postinst must bring it back here, or every future update of your
+# plugin silently breaks whatever it was running - see
+# enigma2-wireguard/control/{prerm,postinst} for the real fix that pattern
+# needed after shipping without it.
+
+exit 0

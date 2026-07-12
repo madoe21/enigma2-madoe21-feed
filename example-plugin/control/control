@@ -1,0 +1,10 @@
+Package: enigma2-plugin-extensions-example
+Version: 0.1.0
+Section: extra
+Priority: optional
+Architecture: all
+Maintainer: your-name <https://github.com/your-name>
+Description: One-line summary of what the plugin does.
+ Longer description, indented with a single leading space per line, same
+ as every other field in this file. This is what shows up in the receiver's
+ plugin manager and in `opkg info`.

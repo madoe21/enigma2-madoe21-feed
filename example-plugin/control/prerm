@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+# opkg passes "remove" as $1 on a genuine uninstall. On an upgrade it also
+# runs prerm (old package) before postinst (new package) - guard any
+# destructive/state-tearing cleanup behind this check, or every update of
+# your plugin does it too.
+if [ "$1" = "remove" ]; then
+    rm -f /etc/enigma2/example_plugin_settings.json || true
+fi
+
+exit 0

@@ -22,6 +22,15 @@ This project automatically downloads the latest release version of all Enigma2 p
 
 ---
 
+## Building your own plugin for a feed like this
+
+[`example-plugin/`](example-plugin/) is a template showing the structure every plugin
+above follows (Makefile, `control/` scripts, plugin source layout, the release workflow
+that builds an IPK and dispatches a feed rebuild). It is **not built or served** — see
+its own README for how to use it as a starting point in your own repo.
+
+---
+
 ## How it works
 
 - For each plugin the latest GitHub Release is downloaded (only tags like `v1.2.3`).
