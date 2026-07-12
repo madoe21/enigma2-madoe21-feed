@@ -1,5 +1,7 @@
 # enigma2-madoe21-feed
 
+[![Built with aiflow](https://img.shields.io/badge/built%20with-aiflow-6b46c1)](https://github.com/cyber93de/aiflow)
+
 This project automatically downloads the latest release version of all Enigma2 plugins from GitHub and serves them as an opkg feed via GitHub Pages.
 
 ---
