@@ -1,4 +1,9 @@
 name: release
+
+# A release is cut by merging develop (or a hotfix) into main. The version that
+# lands on main is already clean -- prepare-release.yml strips the -buildN /
+# -HOTFIX suffix on the release branch while the PR is open. This workflow tags,
+# builds, publishes, rebuilds the feed and opens the next build cycle on develop.
 on:
   push:
     branches: [main]
@@ -8,45 +13,64 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-main
   cancel-in-progress: false
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.check.outputs.released }}
+      version: ${{ steps.ver.outputs.version }}
+      package: ${{ steps.ver.outputs.package }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: main
           fetch-depth: 0
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fakeroot binutils
 
       - name: Read version
         id: ver
         run: |
-          V=$(cat VERSION | tr -d '[:space:]')
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          RAW=$(tr -d '[:space:]' < VERSION)
+          case "$RAW" in
+            *-*)
+              echo "::error::VERSION on main is '$RAW'. main must never carry a pre-release"
+              echo "::error::suffix -- the prepare-release workflow strips it on the release"
+              echo "::error::branch before the merge (or run 'aiflow release --yes')."
+              exit 1
+              ;;
+            [0-9]*.[0-9]*.[0-9]*) : ;;
+            *) echo "::error::VERSION '$RAW' is not X.Y.Z"; exit 1 ;;
+          esac
+          PKG=$(awk '/^Package:/{print $2;exit}' control/control)
+          test -n "$PKG"
+          echo "version=$RAW" >> "$GITHUB_OUTPUT"
+          echo "tag=v$RAW" >> "$GITHUB_OUTPUT"
+          echo "package=$PKG" >> "$GITHUB_OUTPUT"
 
       - name: Skip if this version is already released
         id: check
         run: |
           if git rev-parse -q --verify "refs/tags/${{ steps.ver.outputs.tag }}" >/dev/null; then
-            echo "exists=true"  >> "$GITHUB_OUTPUT"
-            echo "::notice::Tag ${{ steps.ver.outputs.tag }} already exists — nothing to release."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag ${{ steps.ver.outputs.tag }} already exists -- nothing to release."
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "released=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install build dependencies
+        if: steps.check.outputs.released == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext fakeroot binutils
+
       - name: Build IPK
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.released == 'true'
         run: make ipk
 
       - name: Locate IPK artifact
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.released == 'true'
         id: ipk
         run: |
           FILE=$(ls build/*.ipk | head -n1)
@@ -54,7 +78,7 @@ jobs:
           echo "path=$FILE" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.released == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -62,7 +86,7 @@ jobs:
           git push origin "${{ steps.ver.outputs.tag }}"
 
       - name: Publish GitHub Release
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.released == 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
@@ -70,14 +94,45 @@ jobs:
           files: ${{ steps.ipk.outputs.path }}
           generate_release_notes: true
 
-      # Self-dispatch: this repo's own build-feed.yml also needs to pick up the
-      # new madoe21-feed IPK (it's included in its own feed so it can self-update).
-      - name: Trigger feed rebuild
-        if: steps.check.outputs.exists == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  feed:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    # This repo ships the feed itself: rebuild it in-run instead of dispatching.
+    # A repository_dispatch sent with GITHUB_TOKEN never starts a workflow and
+    # this repo holds no PAT, so the reusable call is the only reliable path.
+    uses: ./.github/workflows/build-feed.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+  bump-develop:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Open the next build cycle on develop
         run: |
-          gh api repos/madoe21/enigma2-madoe21-feed/dispatches \
-            -f event_type=plugin-released \
-            -f "client_payload[repo]=${{ github.repository }}" \
-            -f "client_payload[tag]=${{ steps.ver.outputs.tag }}"
+          IFS=. read MA MI PA <<<"${{ needs.release.outputs.version }}"
+          NEXT="${MA}.$((MI + 1)).0-build1"
+          CUR=$(tr -d '[:space:]' < VERSION)
+          if [ "$CUR" = "$NEXT" ]; then
+            echo "::notice::develop already on $NEXT"
+            exit 0
+          fi
+          echo "$NEXT" > VERSION
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git commit -m "chore(version): $NEXT [skip-bump] [skip ci]"
+          for attempt in 1 2 3; do
+            git push origin HEAD:develop && exit 0
+            echo "push rejected, rebasing on develop (attempt $attempt)"
+            git pull --rebase origin develop
+          done
+          echo "::error::could not push the post-release bump to develop"; exit 1
